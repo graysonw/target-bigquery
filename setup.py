@@ -11,6 +11,7 @@ setup(name='target-bigquery',
       py_modules=['target_bigquery'],
       install_requires=[
           'jsonschema==2.6.0',
+          'simplejson==3.11.1',
           'singer-python>=1.5.0',
           'google-api-python-client>=1.6.2',
           'google-cloud>=0.34.0',
@@ -21,4 +22,4 @@ setup(name='target-bigquery',
           [console_scripts]
           target-bigquery=target_bigquery:main
       ''',
-)
+      )
