@@ -57,6 +57,11 @@ def clear_dict_hook(items):
     return {k: v if v is not None else '' for k, v in items}
 
 
+def get_type_from_schema_property(types):
+    """ Get other type that is not 'null' """
+    return [t for t in types if t != "null"][0]
+
+
 def define_schema(field, name):
     schema_name = name
     schema_type = "STRING"
@@ -72,11 +77,12 @@ def define_schema(field, name):
                 field = types
 
     if isinstance(field['type'], list):
-        if field['type'][0] == "null":
+        if "null" in field['type']:
             schema_mode = 'NULLABLE'
         else:
             schema_mode = 'required'
-        schema_type = field['type'][-1]
+
+        schema_type = get_type_from_schema_property(field['type'])
     else:
         schema_type = field['type']
     if schema_type == "object":
@@ -108,10 +114,23 @@ def build_schema(schema):
             # if we endup with an empty record.
             continue
 
-        schema_name, schema_type, schema_mode, schema_description, schema_fields = define_schema(
-            schema['properties'][key], key)
+        logger.info('keys schema properties: {}'.format(
+            schema['properties'][key]))
+
+        schema_name, schema_type, schema_mode, \
+            schema_description, schema_fields = define_schema(
+                schema['properties'][key],
+                key)
+
+        logger.info('schema_name: {}'.format(schema_name))
+        logger.info('schema_type: {}'.format(schema_type))
+        logger.info('schema_mode: {}'.format(schema_mode))
+        logger.info('schema_description: {}'.format(schema_description))
+        logger.info('schema_fields: {}'.format(schema_fields))
+
         SCHEMA.append(SchemaField(schema_name, schema_type,
-                                  schema_mode, schema_description, schema_fields))
+                                  schema_mode, schema_description,
+                                  schema_fields))
 
     return SCHEMA
 
@@ -240,9 +259,15 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
             if validate_records:
                 validate(msg.record, schema)
 
-            errors[msg.stream] = bigquery_client.insert_rows_json(
-                tables[msg.stream], [msg.record])
-            rows[msg.stream] += 1
+            # Isolate message throwing BadRequest
+            try:
+                errors[msg.stream] = bigquery_client.insert_rows_json(
+                    tables[msg.stream],
+                    [msg.record])
+                rows[msg.stream] += 1
+            except exceptions.BadRequest:
+                logger.error("BadRequest, msg is {}".format(msg))
+                raise Exception("BadRequest, msg is {}".format(msg))
 
             state = None
 
@@ -254,8 +279,13 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
             table = msg.stream
             schemas[table] = msg.schema
             key_properties[table] = msg.key_properties
+
+            table_schema = build_schema(schemas[table])
+            logger.info('table schema: {}'.format(table_schema))
+
             tables[table] = bigquery.Table(dataset.table(
-                table), schema=build_schema(schemas[table]))
+                table),
+                schema=table_schema)
             rows[table] = 0
             errors[table] = None
             try:
