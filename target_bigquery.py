@@ -85,12 +85,16 @@ def define_schema(field, name):
         schema_type = get_type_from_schema_property(field['type'])
     else:
         schema_type = field['type']
+
     if schema_type == "object":
         schema_type = "RECORD"
         schema_fields = tuple(build_schema(field))
+
     if schema_type == "array":
-        schema_type = field.get('items').get('type')
+        schema_type_list = field.get('items').get('type')
+        schema_type = get_type_from_schema_property(schema_type_list)
         schema_mode = "REPEATED"
+
         if schema_type == "object":
             schema_type = "RECORD"
             schema_fields = tuple(build_schema(field.get('items')))
@@ -120,8 +124,10 @@ def build_schema(schema):
                 field=schema['properties'][key],
                 name=key)
 
-        SCHEMA.append(SchemaField(schema_name, schema_type,
-                                  schema_mode, schema_description,
+        SCHEMA.append(SchemaField(schema_name,
+                                  schema_type,
+                                  schema_mode,
+                                  schema_description,
                                   schema_fields))
 
     return SCHEMA
@@ -234,8 +240,10 @@ def persist_lines_job(project_id,
 
     for table in rows.keys():
         table_ref = bigquery_client.dataset(dataset_id).table(table)
+
         SCHEMA = build_schema(schemas[table])
         load_config = LoadJobConfig()
+
         load_config.schema = SCHEMA
         load_config.source_format = SourceFormat.NEWLINE_DELIMITED_JSON
 
@@ -251,7 +259,6 @@ def persist_lines_job(project_id,
             job_config=load_config)
 
         logger.info("loading job {}".format(load_job.job_id))
-        logger.info(load_job.result())
 
     return state
 
