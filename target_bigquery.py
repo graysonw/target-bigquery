@@ -59,7 +59,9 @@ def clear_dict_hook(items):
 
 def get_type_from_schema_property(types):
     """ Get other type that is not 'null' """
-    return [t for t in types if t != "null"][0]
+    if isinstance(types, list):
+        return [t for t in types if t != "null"][0]
+    return types
 
 
 def define_schema(field, name):
