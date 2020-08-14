@@ -4,6 +4,7 @@ import argparse
 import io
 import sys
 import json
+import string
 import simplejson
 import logging
 import collections
@@ -134,45 +135,60 @@ def build_schema(schema):
 
     return SCHEMA
 
-
 def enforce_bigquery_column_naming_requirements(column_name,
                                                 prefix='col'):
 
     if not isinstance(column_name, str):
         logger.error('Column is not str: {}'.format(column_name))
 
+    # Remove unicode
+    column_name = column_name.encode('ascii', 'ignore').decode()
+
+    # Remove punctuation
+    column_name = \
+        column_name.translate(str.maketrans('', '', string.punctuation))
+
+    # Replace spaces with underscores
+    column_name = column_name.replace(' ', '_')
+
     # Pipedrive specific change
     length_ge_fourty = len(column_name) >= 40
     if length_ge_fourty:
-        return prefix + '_' + column_name
+        updated_column_name = prefix + '_' + column_name
+        return updated_column_name[:128]
 
     # BigQuery column naming requirements
     # https://cloud.google.com/bigquery/docs/schemas#column_names
     first_character_is_underscore = column_name[0] == '_'
     first_character_is_letter = column_name[0].isalpha()
-    if (first_character_is_letter
-            or first_character_is_underscore):
-        return column_name
-    return prefix + '_' + column_name
+    if (first_character_is_letter or first_character_is_underscore):
+        return column_name[:128]
 
+    updated_column_name = prefix + '_' + column_name
+    return updated_column_name[:128]
 
-def convert_record_column_names_to_bigquery_format(record):
+def convert_dict_keys_to_bigquery_format(record):
     updated_record = {}
     for column_name, entry in record.items():
+
         updated_column_name = \
-            enforce_bigquery_column_naming_requirements(column_name)
+                enforce_bigquery_column_naming_requirements(column_name)
+
+        # Recursive call to handle nested dicts
+        if isinstance(entry, dict):
+            nested_entry = convert_dict_keys_to_bigquery_format(entry)
+            entry = nested_entry
+
         updated_record[updated_column_name] = entry
+
     return updated_record
 
 
-# TODO: passing through schema for now...
 def convert_schema_column_names_to_bigquery_format(schema):
-    updated_schema_properties = {}
-    for column_name, entry in schema['properties'].items():
-        updated_column_name = \
-            enforce_bigquery_column_naming_requirements(column_name)
-        updated_schema_properties[updated_column_name] = entry
+    updated_schema_properties = \
+        convert_dict_keys_to_bigquery_format(schema['properties'])
     schema['properties'] = updated_schema_properties
+
     return schema
 
 
@@ -205,7 +221,7 @@ def persist_lines_job(project_id,
 
             schema = schemas[msg.stream]
 
-            msg.record = convert_record_column_names_to_bigquery_format(
+            msg.record = convert_dict_keys_to_bigquery_format(
                 record=msg.record)
 
             if validate_records:
@@ -299,7 +315,7 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
 
             schema = schemas[msg.stream]
 
-            msg.record = convert_record_column_names_to_bigquery_format(
+            msg.record = convert_dict_keys_to_bigquery_format(
                 record=msg.record)
 
             if validate_records:
