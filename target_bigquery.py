@@ -34,6 +34,9 @@ try:
 except ImportError:
     flags = None
 
+# Remove underscores
+PUNCTUATION = string.punctuation.replace('_','')
+
 logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR)
 logger = singer.get_logger()
 
@@ -146,7 +149,7 @@ def enforce_bigquery_column_naming_requirements(column_name,
 
     # Remove punctuation
     column_name = \
-        column_name.translate(str.maketrans('', '', string.punctuation))
+        column_name.translate(str.maketrans('', '', PUNCTUATION))
 
     # Replace spaces with underscores
     column_name = column_name.replace(' ', '_')
