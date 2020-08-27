@@ -66,11 +66,12 @@ def define_schema(field, name):
                 field = types
             
     if isinstance(field['type'], list):
-        if field['type'][0] == "null":
-            schema_mode = 'NULLABLE'
-        else:
-            schema_mode = 'required'
+        schema_mode = 'NULLABLE'
         schema_type = field['type'][-1]
+        if schema_type == 'null':
+            schema_type = field['type'][0]
+            if schema_type == 'null':
+                schema_type = field['type'][1]
     else:
         schema_type = field['type']
     if schema_type == "object":
@@ -79,7 +80,7 @@ def define_schema(field, name):
     if schema_type == "array":
         schema_type = field.get('items').get('type')
         schema_mode = "REPEATED"
-        if schema_type == "object":
+        if schema_type == "object" or "object" in schema_type:
           schema_type = "RECORD"
           schema_fields = tuple(build_schema(field.get('items')))
 
