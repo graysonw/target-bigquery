@@ -84,9 +84,6 @@ def define_schema(field, name):
           schema_type = "RECORD"
           schema_fields = tuple(build_schema(field.get('items')))
 
-    if schema_type == None:
-        schema_type = "string"
-
 
     if schema_type == "string":
         if "format" in field:
@@ -95,6 +92,9 @@ def define_schema(field, name):
 
     if schema_type == 'number':
         schema_type = 'FLOAT'
+
+    if schema_type is None:
+        schema_type = "string"
 
     print(schema_name, schema_type)
 
