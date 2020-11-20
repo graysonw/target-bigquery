@@ -2,5 +2,6 @@
     "project_id": "bigquery-public-data",
     "dataset_id": "samples",
     "table_id": "github_timeline",
-    "validate_records": true
+    "validate_records": true,
+    "add_tap_metadata": false
 }
