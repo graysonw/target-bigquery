@@ -27,6 +27,7 @@ from google.api_core import exceptions
 try:
     parser = argparse.ArgumentParser(parents=[tools.argparser])
     parser.add_argument('-c', '--config', help='Config file', required=True)
+    parser.add_argument("--data-location", help="specify data location for a dataset")
     flags = parser.parse_args()
 
 except ImportError:
@@ -211,6 +212,9 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
         dataset = bigquery_client.create_dataset(Dataset(dataset_ref)) or Dataset(dataset_ref)
     except exceptions.Conflict:
         pass
+
+    if flags.data_location:
+        dataset.location = flags.data_location
 
     for line in lines:
         try:
