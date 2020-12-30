@@ -27,6 +27,7 @@ from google.api_core import exceptions
 try:
     parser = argparse.ArgumentParser(parents=[tools.argparser])
     parser.add_argument('-c', '--config', help='Config file', required=True)
+    parser.add_argument("--data-location", help="specify data location for a dataset")
     flags = parser.parse_args()
 
 except ImportError:
@@ -115,7 +116,10 @@ def persist_lines_job(project_id, dataset_id, lines=None, truncate=False, valida
     rows = {}
     errors = {}
 
-    bigquery_client = bigquery.Client(project=project_id)
+    if flags.data_location:
+        bigquery_client = bigquery.Client(project=project_id, location=flags.data_location)
+    else:
+        bigquery_client = bigquery.Client(project=project_id)
 
     # try:
     #     dataset = bigquery_client.create_dataset(Dataset(dataset_ref)) or Dataset(dataset_ref)
@@ -203,7 +207,10 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
     rows = {}
     errors = {}
 
-    bigquery_client = bigquery.Client(project=project_id)
+    if flags.data_location:
+        bigquery_client = bigquery.Client(project=project_id, location=flags.data_location)
+    else:
+        bigquery_client = bigquery.Client(project=project_id)
 
     dataset_ref = bigquery_client.dataset(dataset_id)
     dataset = Dataset(dataset_ref)
