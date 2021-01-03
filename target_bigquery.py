@@ -61,10 +61,11 @@ def define_schema(field, name):
 
     if 'type' not in field and 'anyOf' in field:
         for types in field['anyOf']:
-            if types['type'] == 'null':
-                schema_mode = 'NULLABLE'
-            else:
-                field = types
+            if types:
+                if types['type'] == 'null':
+                    schema_mode = 'NULLABLE'
+                else:
+                    field = types
             
     if isinstance(field['type'], list):
         if field['type'][0] == "null":
