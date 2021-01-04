@@ -349,17 +349,17 @@ def main():
 
 
 
-    logger.info("Input length: {}".format(len(input)))
-    record_cnt = 0
-    for line in input:
-        try:
-            obj = json.loads(line)
-            # print(obj.keys())
-            if obj['type'] == "RECORD":
-                record_cnt += 1
-        except:
-            pass
-    logger.info("Record count: {}".format(record_cnt))
+#     logger.info("Input length: {}".format(len(input)))
+#     record_cnt = 0
+#     for line in input:
+#         try:
+#             obj = json.loads(line)
+#             # print(obj.keys())
+#             if obj['type'] == "RECORD":
+#                 record_cnt += 1
+#         except:
+#             pass
+#     logger.info("Record count: {}".format(record_cnt))
 
     if config.get('stream_data', True):
         state = persist_lines_stream(config['project_id'], config['dataset_id'], input, validate_records=validate_records)
