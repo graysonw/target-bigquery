@@ -253,7 +253,7 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
                 if isinstance(value, decimal.Decimal):
                     msg.record[key] = str(value)
             clean_decimal_end = time.time()
-            logger.info("[TIMING] Clean decimal: {} seconds.".format(clean_decimal_end - clean_decimal_start))
+#             logger.info("[TIMING] Clean decimal: {} seconds.".format(clean_decimal_end - clean_decimal_start))
 
             send_to_bq_start = time.time()
             data_holder.append(msg.record)
