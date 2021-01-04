@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import decimal
 import io
 import sys
 import json
@@ -61,10 +62,11 @@ def define_schema(field, name):
 
     if 'type' not in field and 'anyOf' in field:
         for types in field['anyOf']:
-            if types['type'] == 'null':
-                schema_mode = 'NULLABLE'
-            else:
-                field = types
+            if types:
+                if types['type'] == 'null':
+                    schema_mode = 'NULLABLE'
+                else:
+                    field = types
             
     if isinstance(field['type'], list):
         if field['type'][0] == "null":
@@ -235,6 +237,12 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
             if validate_records:
                 validate(msg.record, schema)
 
+            for key, value in msg.record.items():
+                if isinstance(value, decimal.Decimal):
+                    # wanted a simple yield str(o) in the next line,
+                    # but that would mean a yield on the line with super(...),
+                    # which wouldn't work (see my comment below), so...
+                    msg.record[key] = str(value)
             errors[msg.stream] = bigquery_client.insert_rows_json(tables[msg.stream], [msg.record])
             rows[msg.stream] += 1
 
@@ -308,6 +316,10 @@ def main():
     validate_records = config.get('validate_records', True)
 
     input = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8')
+    # Debug only
+    # input = ['{"type": "STATE", "value": {"bookmarks": {"BMSCurrencies-ExchangeRates": {"last_replication_method": "LOG_BASED"}}, "currently_syncing": "BMSCurrencies-ExchangeRates"}}\n', '{"type": "SCHEMA", "stream": "ExchangeRates", "schema": {"properties": {"_id": {"type": ["null", "string"]}, "CurrencyFrom": {"type": ["null", "string"]}, "CurrencyTo": {"type": ["null", "string"]}, "CountryCode": {"type": ["null", "string"]}, "Source": {"type": ["null", "integer"]}, "Rate": {"type": ["null", "number"]}, "Multiplier": {"type": ["null", "number"]}, "PublishDate": {"format": "date-time", "type": ["null", "string"]}, "IsCrossRate": {"type": ["null", "boolean"]}, "CreateDate": {"format": "date-time", "type": ["null", "string"]}, "Timestamp": {"format": "date-time", "type": ["null", "string"]}, "AccessId": {"type": ["null", "string"]}}, "type": ["object", "null"], "additionalProperties": false}, "key_properties": ["_id"]}\n', '{"type": "STATE", "value": {"bookmarks": {"BMSCurrencies-ExchangeRates": {"last_replication_method": "LOG_BASED", "oplog_ts_time": 1609683900, "oplog_ts_inc": 10, "version": 1609683902530}}, "currently_syncing": "BMSCurrencies-ExchangeRates"}}\n', '{"type": "ACTIVATE_VERSION", "stream": "ExchangeRates", "version": 1609683902530}\n', '{"type": "SCHEMA", "stream": "ExchangeRates", "schema": {"type": "object", "properties": {"Rate": {"anyOf": [{"type": "number"}, {}]}, "PublishDate": {"anyOf": [{"type": "string", "format": "date-time"}, {}]}, "CreateDate": {"anyOf": [{"type": "string", "format": "date-time"}, {}]}}}, "key_properties": ["_id"]}\n', '{"type": "RECORD", "stream": "ExchangeRates", "record": {"_id": "5fad05a4af9143db1ea9b11b", "CurrencyFrom": "SDG", "CurrencyTo": "BRL", "CountryCode": "BR", "Source": 5, "Rate": 0.53, "Multiplier": 1, "PublishDate": "2016-09-01T00:00:00.000000Z", "IsCrossRate": false, "CreateDate": "2018-04-13T11:42:51.350000Z"}, "version": 1609683902530, "time_extracted": "2021-01-03T14:25:02.620473Z"}\n', '{"type": "RECORD", "stream": "ExchangeRates", "record": {"_id": "5fad05a4af9143db1ea9b11c", "CurrencyFrom": "BHD", "CurrencyTo": "BRL", "CountryCode": "BR", "Source": 5, "Rate": 8.59, "Multiplier": 1, "PublishDate": "2016-09-01T00:00:00.000000Z", "IsCrossRate": false, "CreateDate": "2018-04-13T11:42:51.350000Z"}, "version": 1609683902530, "time_extracted": "2021-01-03T14:25:02.620473Z"}\n', '{"type": "RECORD", "stream": "ExchangeRates", "record": {"_id": "5fad05a4af9143db1ea9b11d", "CurrencyFrom": "DZD", "CurrencyTo": "BRL", "CountryCode": "BR", "Source": 5, "Rate": 0.03, "Multiplier": 1, "PublishDate": "2016-09-01T00:00:00.000000Z", "IsCrossRate": false, "CreateDate": "2018-04-13T11:42:51.350000Z"}, "version": 1609683902530, "time_extracted": "2021-01-03T14:25:02.620473Z"}\n', '{"type": "RECORD", "stream": "ExchangeRates", "record": {"_id": "5fad05a4af9143db1ea9b11e", "CurrencyFrom": "KWD", "CurrencyTo": "BRL", "CountryCode": "BR", "Source": 5, "Rate": 10.73, "Multiplier": 1, "PublishDate": "2016-09-01T00:00:00.000000Z", "IsCrossRate": false, "CreateDate": "2018-04-13T11:42:51.350000Z"}, "version": 1609683902530, "time_extracted": "2021-01-03T14:25:02.620473Z"}\n', '{"type": "RECORD", "stream": "ExchangeRates", "record": {"_id": "5fad05a4af9143db1ea9b11f", "CurrencyFrom": "GMD", "CurrencyTo": "BRL", "CountryCode": "BR", "Source": 5, "Rate": 0.08, "Multiplier": 1, "PublishDate": "2016-09-01T00:00:00.000000Z", "IsCrossRate": false, "CreateDate": "2018-04-13T11:42:51.350000Z"}, "version": 1609683902530, "time_extracted": "2021-01-03T14:25:02.620473Z"}\n', '{"type": "RECORD", "stream": "ExchangeRates", "record": {"_id": "5fedf58794ef6e0001460593", "CurrencyFrom": "THB", "CurrencyTo": "BGN", "CountryCode": "BG", "Source": 3, "Rate": "5.32532", "Multiplier": 100, "IsCrossRate": false, "PublishDate": "2020-12-31T00:00:00.000000Z", "CreateDate": "2020-12-31T15:51:15.310000Z", "Timestamp": "2020-12-31T16:00:07.721000Z", "AccessId": "073618"}, "version": 1609683902530, "time_extracted": "2021-01-03T14:25:02.620473Z"}\n', '{"type": "RECORD", "stream": "ExchangeRates", "record": {"_id": "5fedf58794ef6e0001460594", "CurrencyFrom": "TRY", "CurrencyTo": "BGN", "CountryCode": "BG", "Source": 3, "Rate": "2.14617", "Multiplier": 10, "IsCrossRate": false, "PublishDate": "2020-12-31T00:00:00.000000Z", "CreateDate": "2020-12-31T15:51:15.397000Z", "Timestamp": "2020-12-31T16:00:07.721000Z", "AccessId": "84ef1d"}, "version": 1609683902530, "time_extracted": "2021-01-03T14:25:02.620473Z"}\n', '{"type": "RECORD", "stream": "ExchangeRates", "record": {"_id": "5fedf58794ef6e0001460595", "CurrencyFrom": "USD", "CurrencyTo": "BGN", "CountryCode": "BG", "Source": 3, "Rate": "1.59386", "Multiplier": 1, "IsCrossRate": false, "PublishDate": "2020-12-31T00:00:00.000000Z", "CreateDate": "2020-12-31T15:51:15.480000Z", "Timestamp": "2020-12-31T16:00:07.721000Z", "AccessId": "add306"}, "version": 1609683902530, "time_extracted": "2021-01-03T14:25:02.620473Z"}\n', '{"type": "RECORD", "stream": "ExchangeRates", "record": {"_id": "5fedf58794ef6e0001460596", "CurrencyFrom": "ZAR", "CurrencyTo": "BGN", "CountryCode": "BG", "Source": 3, "Rate": "1.08525", "Multiplier": 10, "IsCrossRate": false, "PublishDate": "2020-12-31T00:00:00.000000Z", "CreateDate": "2020-12-31T15:51:15.563000Z", "Timestamp": "2020-12-31T16:00:07.721000Z", "AccessId": "8e2646"}, "version": 1609683902530, "time_extracted": "2021-01-03T14:25:02.620473Z"}\n', '{"type": "RECORD", "stream": "ExchangeRates", "record": {"_id": "5fedf58794ef6e0001460597", "CurrencyFrom": "XAU", "CurrencyTo": "BGN", "CountryCode": "BG", "Source": 3, "Rate": "3011.82000", "Multiplier": 1, "IsCrossRate": false, "PublishDate": "2020-12-31T00:00:00.000000Z", "CreateDate": "2020-12-31T15:51:15.647000Z", "Timestamp": "2020-12-31T16:00:07.722000Z", "AccessId": "c309a9"}, "version": 1609683902530, "time_extracted": "2021-01-03T14:25:02.620473Z"}\n', '{"type": "RECORD", "stream": "ExchangeRates", "record": {"_id": "5fedf58794ef6e0001460598", "CurrencyFrom": "AED", "CurrencyTo": "BGN", "CountryCode": "BG", "Source": 3, "Rate": "0.43543", "Multiplier": 1, "IsCrossRate": false, "PublishDate": "2020-12-31T00:00:00.000000Z", "CreateDate": "2020-12-31T15:51:15.730000Z", "Timestamp": "2020-12-31T16:00:07.722000Z", "AccessId": "5c55f8"}, "version": 1609683902530, "time_extracted": "2021-01-03T14:25:02.620473Z"}\n', '{"type": "RECORD", "stream": "ExchangeRates", "record": {"_id": "5fedf58794ef6e0001460599", "CurrencyFrom": "EUR", "CurrencyTo": "BGN", "CountryCode": "BG", "Source": 3, "Rate": "1.95600", "Multiplier": 1, "IsCrossRate": false, "PublishDate": "2020-12-31T00:00:00.000000Z", "CreateDate": "2015-10-13T00:00:00.000000Z", "Timestamp": "2020-12-31T16:00:07.722000Z", "AccessId": "34ce10"}, "version": 1609683902530, "time_extracted": "2021-01-03T14:25:02.620473Z"}\n', '{"type": "ACTIVATE_VERSION", "stream": "ExchangeRates", "version": 1609683902530}\n', '{"type": "ACTIVATE_VERSION", "stream": "ExchangeRates", "version": 1609683902530}\n', '{"type": "STATE", "value": {"bookmarks": {"BMSCurrencies-ExchangeRates": {"last_replication_method": "LOG_BASED", "oplog_ts_time": 1609684043, "oplog_ts_inc": 7, "version": 1609683902530, "initial_full_table_complete": true}}, "currently_syncing": null}}\n']
+
+    ##
 
     if config.get('stream_data', True):
         state = persist_lines_stream(config['project_id'], config['dataset_id'], input, validate_records=validate_records)

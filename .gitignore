@@ -103,3 +103,7 @@ ENV/
 .vscode/
 
 .idea/
+
+target_config.json
+credentials_target.json
+brudnopis.py
