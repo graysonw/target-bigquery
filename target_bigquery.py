@@ -32,6 +32,7 @@ try:
     parser.add_argument('-c', '--config', help='Config file', required=True)
     parser.add_argument("--data-location", help="specify data location for a dataset")
     parser.add_argument("--no-records", help="Send a specified number of records to BigQuery")
+    parser.add_argument('--pickle-location', help="Pickle's file location", required=True)
     flags = parser.parse_args()
 
 except ImportError:
@@ -403,9 +404,12 @@ def main():
 
     # only persist_lines_stream supports empty array transformation
     # TODO: przekazywać `array_nodes` z poziomu CLI
+    with open(flags.pickle_location, 'rb') as ph:
+        array_nodes = pickle.load(ph)
+
     if config.get('stream_data', True):
         state = persist_lines_stream(config['project_id'], config['dataset_id'], input,
-                                     validate_records=validate_records, array_nodes=[('attributes',), ('customWeights',)])
+                                     validate_records=validate_records, array_nodes=array_nodes)
     else:
         state = persist_lines_job(config['project_id'], config['dataset_id'], input, truncate=truncate,
                                   validate_records=validate_records)
