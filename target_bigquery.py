@@ -288,6 +288,14 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
 
             modified_record = handle_empty_arrays(array_nodes, msg.record)
 
+            # debug --
+            try:
+                if modified_record['customWeights'] is None:
+                    logger.warning(modified_record)
+            except KeyError:
+                pass
+            # -- debug
+
             send_to_bq_start = time.time()
             data_holder.append(modified_record)
             if len(data_holder) >= no_records:
