@@ -402,9 +402,10 @@ def main():
     #     logger.info("Record count: {}".format(record_cnt))
 
     # only persist_lines_stream supports empty array transformation
+    # TODO: przekazywać `array_nodes` z poziomu CLI
     if config.get('stream_data', True):
         state = persist_lines_stream(config['project_id'], config['dataset_id'], input,
-                                     validate_records=validate_records, array_nodes=[])
+                                     validate_records=validate_records, array_nodes=[('attributes',), ('customWeights',)])
     else:
         state = persist_lines_job(config['project_id'], config['dataset_id'], input, truncate=truncate,
                                   validate_records=validate_records)
