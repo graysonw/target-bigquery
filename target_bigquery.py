@@ -56,7 +56,8 @@ def handle_empty_arrays(array_nodes, payload):
             nested_value = nested_dict[last_key]
         except KeyError:
             # there is no such field in the document
-            return payload
+            # return payload
+            continue
 
         if not nested_value:
             nested_dict.update({last_key: []})
