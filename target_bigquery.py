@@ -47,6 +47,21 @@ APPLICATION_NAME = 'Singer BigQuery Target'
 
 StreamMeta = collections.namedtuple('StreamMeta', ['schema', 'key_properties', 'bookmark_properties'])
 
+def handle_decimal_values(obj):
+    if isinstance(obj, dict):
+        result = {}
+        for key, value in obj.items():
+            result[key] = handle_decimal_values(value)
+    elif isinstance(obj, list):
+        result = []
+        for elem in obj:
+            result.append(handle_decimal_values(elem))
+    elif isinstance(obj, decimal.Decimal):
+        result = str(obj)
+    else:
+        result = obj
+    return result
+
 
 def handle_empty_arrays(array_nodes, payload):
     for array_steps in array_nodes:
@@ -286,22 +301,10 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
             if validate_records:
                 validate(msg.record, schema)
 
-            clean_decimal_start = time.time()
-            for key, value in msg.record.items():
-                if isinstance(value, decimal.Decimal):
-                    msg.record[key] = str(value)
-            clean_decimal_end = time.time()
-            #             logger.info("[TIMING] Clean decimal: {} seconds.".format(clean_decimal_end - clean_decimal_start))
+            # TODO: zmiana decimal.Decimal na str na dowolnym poziomie głębokości
 
-            modified_record = handle_empty_arrays(array_nodes, msg.record)
-
-            # debug --
-            try:
-                if modified_record['customWeights'] is None:
-                    logger.warning(modified_record)
-            except KeyError:
-                pass
-            # -- debug
+            modified_record = handle_decimal_values(msg.record)
+            modified_record = handle_empty_arrays(array_nodes, modified_record)
 
             send_to_bq_start = time.time()
             data_holder.append(modified_record)
