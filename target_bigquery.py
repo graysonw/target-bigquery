@@ -301,8 +301,6 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
             if validate_records:
                 validate(msg.record, schema)
 
-            # TODO: zmiana decimal.Decimal na str na dowolnym poziomie głębokości
-
             modified_record = handle_decimal_values(msg.record)
             modified_record = handle_empty_arrays(array_nodes, modified_record)
 
