@@ -52,7 +52,12 @@ def handle_empty_arrays(array_nodes, payload):
     for array_steps in array_nodes:
         last_key = array_steps[-1:][0]
         nested_dict = safeget(payload, *array_steps[:-1])
-        nested_value = nested_dict[last_key]
+        try:
+            nested_value = nested_dict[last_key]
+        except KeyError:
+            # there is no such field in the document
+            return payload
+
         if not nested_value:
             nested_dict.update({last_key: []})
     return payload
@@ -403,7 +408,6 @@ def main():
     #     logger.info("Record count: {}".format(record_cnt))
 
     # only persist_lines_stream supports empty array transformation
-    # TODO: przekazywać `array_nodes` z poziomu CLI
     with open(flags.pickle_location, 'rb') as ph:
         array_nodes = pickle.load(ph)
 
