@@ -310,6 +310,11 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
                 # one Docker container <-> one stream
                 logger.info("Sending: {} records".format(len(data_holder)))
                 errors[msg.stream] = bigquery_client.insert_rows_json(tables[msg.stream], data_holder)
+                # TODO: zrobić z tego DEBUG_MODE przy pomocy parametru
+                errors = errors[msg.stream]
+                if len(errors) > 1:
+                    logger.warning(errors)
+
                 rows[msg.stream] += len(data_holder)
                 data_holder = []
                 send_to_bq_end = time.time()
