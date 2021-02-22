@@ -13,6 +13,8 @@ import urllib
 import pkg_resources
 import time
 import pickle
+from types import ModuleType, FunctionType
+from gc import get_referents
 
 from jsonschema import validate
 import singer
@@ -50,6 +52,27 @@ MAX_NO_RECORDS = 10000
 MAX_PAYLOAD_SIZE = 5000000
 
 StreamMeta = collections.namedtuple('StreamMeta', ['schema', 'key_properties', 'bookmark_properties'])
+
+BLACKLIST = type, ModuleType, FunctionType
+
+
+def getsize(obj):
+    """sum size of object & members."""
+    if isinstance(obj, BLACKLIST):
+        raise TypeError('getsize() does not take argument of type: ' + str(type(obj)))
+    seen_ids = set()
+    size = 0
+    objects = [obj]
+    while objects:
+        need_referents = []
+        for obj in objects:
+            if not isinstance(obj, BLACKLIST) and id(obj) not in seen_ids:
+                seen_ids.add(id(obj))
+                size += sys.getsizeof(obj)
+                need_referents.append(obj)
+        objects = get_referents(*need_referents)
+    return size
+
 
 def handle_decimal_values(obj):
     if isinstance(obj, dict):
@@ -328,7 +351,9 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
                 payload_size += item_size
             else:
                 if len(data_holder) >= no_records:
-                    logger.info("Max request size not reached, max #records reached. Sending: {} records, payload size: {} bytes.".format(len(data_holder), item_size + payload_size))
+                    logger.info(
+                        "Max request size not reached, max #records reached. Sending: {} records, payload size: {} bytes.".format(
+                            len(data_holder), item_size + payload_size))
                     errors[msg.stream] = bigquery_client.insert_rows_json(tables[msg.stream], data_holder)
                     rows[msg.stream] += len(data_holder)
                     data_holder = []
