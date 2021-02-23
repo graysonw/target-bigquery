@@ -283,12 +283,11 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
     key_properties = {}
     tables = {}
     rows = {}
-    errors = {}
+    errors = collections.defaultdict(list)
     data_holder = []
     lines_read = False
     stream = None
 
-    # TODO: uwzględnij możliwośc użycia no_records do debugowania, np. wysyłanie małej liczby rekordów
     if flags.no_records:
         no_records = int(flags.no_records)
     else:
@@ -332,16 +331,10 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
             modified_record = handle_decimal_values(msg.record)
             modified_record = handle_empty_arrays(array_nodes, modified_record)
 
-            send_to_bq_start = time.time()
-            # TODO: decyzja o podpięciu danych do data_holder podejmowana na podstawie info o wielkości rekordu i jej wpływie na obecny payload
-
-            # TODO: info o liczbie wysłanych wierszy
-            # data_holder.append(modified_record)
-
             item_size = getsize(modified_record)
             if payload_size + item_size >= MAX_PAYLOAD_SIZE:
                 logger.info('Max request size reached. Sending: {} records.'.format(len(data_holder)))
-                errors[msg.stream] = bigquery_client.insert_rows_json(tables[msg.stream], data_holder)
+                errors[msg.stream].extend(bigquery_client.insert_rows_json(tables[msg.stream], data_holder))
                 rows[msg.stream] += len(data_holder)
                 data_holder = []
                 payload_size = 0
@@ -352,13 +345,15 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
                     logger.info(
                         "Max request size not reached, max #records reached. Sending: {} records, payload size: {} bytes.".format(
                             len(data_holder), item_size + payload_size))
-                    errors[msg.stream] = bigquery_client.insert_rows_json(tables[msg.stream], data_holder)
+                    # TODO: errors[msg.stream] oraz errors[table] - albo po każdej wysyłce sprawdzam błędy, albo na koniec.
+                    #  Jeżeli druga wersja, nie można nadpisywać błędów (jak jest obecnie).
+                    #  https://googleapis.dev/python/bigquery/latest/generated/google.cloud.bigquery.client.Client.html#google.cloud.bigquery.client.Client.insert_rows_json
+                    errors[msg.stream].extend(bigquery_client.insert_rows_json(tables[msg.stream], data_holder))
                     rows[msg.stream] += len(data_holder)
                     data_holder = []
                     payload_size = 0
-                else:
-                    data_holder.append(modified_record)
-                    payload_size += item_size
+                data_holder.append(modified_record)
+                payload_size += item_size
 
             stream = msg.stream
 
@@ -374,7 +369,6 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
             key_properties[table] = msg.key_properties
             tables[table] = bigquery.Table(dataset.table(table), schema=build_schema(schemas[table]))
             rows[table] = 0
-            errors[table] = None
             try:
                 tables[table] = bigquery_client.create_table(tables[table])
             except exceptions.Conflict:
@@ -387,11 +381,10 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
         else:
             raise Exception("Unrecognized message {}".format(msg))
 
-    # send remaining msg.records from data_holder
-    # TODO: zaimplementować logikę z rozmiarem dla pozostałej do wysłania części
     if len(data_holder) > 0 and lines_read and stream:
-        logger.info("Sending: {} records".format(len(data_holder)))
-        errors[stream] = bigquery_client.insert_rows_json(tables[stream], data_holder)
+        logger.info(
+            "Remaining records. Sending: {} records, payload size: {} bytes.".format(len(data_holder), payload_size))
+        errors[stream].extend(bigquery_client.insert_rows_json(tables[stream], data_holder))
         rows[stream] += len(data_holder)
 
     for table in errors.keys():
