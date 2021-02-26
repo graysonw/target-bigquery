@@ -345,9 +345,6 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
                     logger.info(
                         "Max request size not reached, max #records reached. Sending: {} records, payload size: {} bytes.".format(
                             len(data_holder), item_size + payload_size))
-                    # TODO: errors[msg.stream] oraz errors[table] - albo po każdej wysyłce sprawdzam błędy, albo na koniec.
-                    #  Jeżeli druga wersja, nie można nadpisywać błędów (jak jest obecnie).
-                    #  https://googleapis.dev/python/bigquery/latest/generated/google.cloud.bigquery.client.Client.html#google.cloud.bigquery.client.Client.insert_rows_json
                     errors[msg.stream].extend(bigquery_client.insert_rows_json(tables[msg.stream], data_holder))
                     rows[msg.stream] += len(data_holder)
                     data_holder = []
