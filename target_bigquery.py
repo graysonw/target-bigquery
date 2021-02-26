@@ -13,6 +13,8 @@ import urllib
 import pkg_resources
 import time
 import pickle
+from types import ModuleType, FunctionType
+from gc import get_referents
 
 from jsonschema import validate
 import singer
@@ -44,8 +46,31 @@ logger = singer.get_logger()
 SCOPES = ['https://www.googleapis.com/auth/bigquery', 'https://www.googleapis.com/auth/bigquery.insertdata']
 CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_NAME = 'Singer BigQuery Target'
+MAX_NO_RECORDS = 10000
+MAX_PAYLOAD_SIZE = 5000000
 
 StreamMeta = collections.namedtuple('StreamMeta', ['schema', 'key_properties', 'bookmark_properties'])
+
+BLACKLIST = type, ModuleType, FunctionType
+
+
+def getsize(obj):
+    """sum size of object & members."""
+    if isinstance(obj, BLACKLIST):
+        raise TypeError('getsize() does not take argument of type: ' + str(type(obj)))
+    seen_ids = set()
+    size = 0
+    objects = [obj]
+    while objects:
+        need_referents = []
+        for obj in objects:
+            if not isinstance(obj, BLACKLIST) and id(obj) not in seen_ids:
+                seen_ids.add(id(obj))
+                size += sys.getsizeof(obj)
+                need_referents.append(obj)
+        objects = get_referents(*need_referents)
+    return size
+
 
 def handle_decimal_values(obj):
     if isinstance(obj, dict):
@@ -258,7 +283,7 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
     key_properties = {}
     tables = {}
     rows = {}
-    errors = {}
+    errors = collections.defaultdict(list)
     data_holder = []
     lines_read = False
     stream = None
@@ -266,7 +291,8 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
     if flags.no_records:
         no_records = int(flags.no_records)
     else:
-        no_records = 1
+        logger.info('Number of records not specified. Setting to maximum: {}'.format(MAX_NO_RECORDS))
+        no_records = MAX_NO_RECORDS
 
     if flags.data_location:
         bigquery_client = bigquery.Client(project=project_id, location=flags.data_location)
@@ -280,6 +306,7 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
     except exceptions.Conflict:
         pass
 
+    payload_size = 0
     for line in lines:
         lines_read = True
         # skip SCHEMA messages (except for the the intial one)
@@ -304,21 +331,29 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
             modified_record = handle_decimal_values(msg.record)
             modified_record = handle_empty_arrays(array_nodes, modified_record)
 
-            send_to_bq_start = time.time()
-            data_holder.append(modified_record)
-            if len(data_holder) >= no_records:
-                # one Docker container <-> one stream
-                logger.info("Sending: {} records".format(len(data_holder)))
-                errors[msg.stream] = bigquery_client.insert_rows_json(tables[msg.stream], data_holder)
-                # TODO: zrobić z tego DEBUG_MODE przy pomocy parametru
-                # errors = errors[msg.stream]
-                # if len(errors) > 1:
-                #     logger.warning(errors)
-
+            item_size = getsize(modified_record)
+            if payload_size + item_size >= MAX_PAYLOAD_SIZE:
+                logger.info('Max request size reached. Sending: {} records.'.format(len(data_holder)))
+                errors[msg.stream].extend(bigquery_client.insert_rows_json(tables[msg.stream], data_holder))
                 rows[msg.stream] += len(data_holder)
                 data_holder = []
-                send_to_bq_end = time.time()
-                logger.info("[TIMING] Send to BigQuery: {} seconds.".format(send_to_bq_end - send_to_bq_start))
+                payload_size = 0
+                data_holder.append(modified_record)
+                payload_size += item_size
+            else:
+                if len(data_holder) >= no_records:
+                    logger.info(
+                        "Max request size not reached, max #records reached. Sending: {} records, payload size: {} bytes.".format(
+                            len(data_holder), item_size + payload_size))
+                    # TODO: errors[msg.stream] oraz errors[table] - albo po każdej wysyłce sprawdzam błędy, albo na koniec.
+                    #  Jeżeli druga wersja, nie można nadpisywać błędów (jak jest obecnie).
+                    #  https://googleapis.dev/python/bigquery/latest/generated/google.cloud.bigquery.client.Client.html#google.cloud.bigquery.client.Client.insert_rows_json
+                    errors[msg.stream].extend(bigquery_client.insert_rows_json(tables[msg.stream], data_holder))
+                    rows[msg.stream] += len(data_holder)
+                    data_holder = []
+                    payload_size = 0
+                data_holder.append(modified_record)
+                payload_size += item_size
 
             stream = msg.stream
 
@@ -334,7 +369,6 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
             key_properties[table] = msg.key_properties
             tables[table] = bigquery.Table(dataset.table(table), schema=build_schema(schemas[table]))
             rows[table] = 0
-            errors[table] = None
             try:
                 tables[table] = bigquery_client.create_table(tables[table])
             except exceptions.Conflict:
@@ -347,10 +381,10 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
         else:
             raise Exception("Unrecognized message {}".format(msg))
 
-    # send remaining msg.records from data_holder
     if len(data_holder) > 0 and lines_read and stream:
-        logger.info("Sending: {} records".format(len(data_holder)))
-        errors[stream] = bigquery_client.insert_rows_json(tables[stream], data_holder)
+        logger.info(
+            "Remaining records. Sending: {} records, payload size: {} bytes.".format(len(data_holder), payload_size))
+        errors[stream].extend(bigquery_client.insert_rows_json(tables[stream], data_holder))
         rows[stream] += len(data_holder)
 
     for table in errors.keys():
