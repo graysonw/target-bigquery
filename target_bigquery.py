@@ -104,6 +104,14 @@ def handle_empty_arrays(array_nodes, payload):
     return payload
 
 
+def force_fields_to_string(selected_fields, payload):
+    for field_name in selected_fields:
+        field_obj = payload.get(field_name)
+        if field_obj:
+            payload[field_name] = json.dumps(field_obj)
+    return payload
+
+
 def safeget(dct, *keys):
     for key in keys:
         try:
@@ -277,7 +285,7 @@ def persist_lines_job(project_id, dataset_id, lines=None, truncate=False, valida
     return state
 
 
-def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=True, array_nodes=[]):
+def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=True, array_nodes=[], force_to_string_fields=[]):
     state = None
     schemas = {}
     key_properties = {}
@@ -330,6 +338,7 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
 
             modified_record = handle_decimal_values(msg.record)
             modified_record = handle_empty_arrays(array_nodes, modified_record)
+            modified_record = force_fields_to_string(force_to_string_fields, modified_record)
 
             item_size = getsize(modified_record)
             if payload_size + item_size >= MAX_PAYLOAD_SIZE:
@@ -447,11 +456,14 @@ def main():
 
     # only persist_lines_stream supports empty array transformation
     with open(flags.pickle_location, 'rb') as ph:
-        array_nodes = pickle.load(ph)
+        pickled_data = pickle.load(ph)
+        array_nodes = pickled_data['array_nodes']
+        force_to_string_fields = pickled_data['force_to_string_fields']
 
     if config.get('stream_data', True):
         state = persist_lines_stream(config['project_id'], config['dataset_id'], input,
-                                     validate_records=validate_records, array_nodes=array_nodes)
+                                     validate_records=validate_records, array_nodes=array_nodes,
+                                     force_to_string_fields=force_to_string_fields)
     else:
         state = persist_lines_job(config['project_id'], config['dataset_id'], input, truncate=truncate,
                                   validate_records=validate_records)
