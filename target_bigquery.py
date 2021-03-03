@@ -108,7 +108,7 @@ def force_fields_to_string(selected_fields, payload):
     for field_name in selected_fields:
         field_obj = payload.get(field_name)
         if field_obj:
-            payload[field_name] = json.dumps(field_obj)
+            payload[field_name] = json.dumps(field_obj, ensure_ascii=False)
         else:
             payload[field_name] = None
     return payload
