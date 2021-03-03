@@ -47,7 +47,7 @@ SCOPES = ['https://www.googleapis.com/auth/bigquery', 'https://www.googleapis.co
 CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_NAME = 'Singer BigQuery Target'
 MAX_NO_RECORDS = 10000
-MAX_PAYLOAD_SIZE = 5000000
+MAX_PAYLOAD_SIZE = 9500000
 
 StreamMeta = collections.namedtuple('StreamMeta', ['schema', 'key_properties', 'bookmark_properties'])
 
@@ -343,8 +343,11 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
             item_size = getsize(modified_record)
             if payload_size + item_size >= MAX_PAYLOAD_SIZE:
                 logger.info('Max request size reached. Sending: {} records.'.format(len(data_holder)))
-                errors[msg.stream].extend(bigquery_client.insert_rows_json(tables[msg.stream], data_holder))
-                rows[msg.stream] += len(data_holder)
+                upload_res = bigquery_client.insert_rows_json(tables[msg.stream], data_holder)
+                if upload_res:
+                    logger.error('Upload error: {}'.format(upload_res))
+                else:
+                    rows[msg.stream] += len(data_holder)
                 data_holder = []
                 payload_size = 0
                 data_holder.append(modified_record)
@@ -354,8 +357,11 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
                     logger.info(
                         "Max request size not reached, max #records reached. Sending: {} records, payload size: {} bytes.".format(
                             len(data_holder), item_size + payload_size))
-                    errors[msg.stream].extend(bigquery_client.insert_rows_json(tables[msg.stream], data_holder))
-                    rows[msg.stream] += len(data_holder)
+                    upload_res = bigquery_client.insert_rows_json(tables[msg.stream], data_holder)
+                    if upload_res:
+                        logger.error('Upload error: {}'.format(upload_res))
+                    else:
+                        rows[msg.stream] += len(data_holder)
                     data_holder = []
                     payload_size = 0
                 data_holder.append(modified_record)
@@ -390,8 +396,11 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
     if len(data_holder) > 0 and lines_read and stream:
         logger.info(
             "Remaining records. Sending: {} records, payload size: {} bytes.".format(len(data_holder), payload_size))
-        errors[stream].extend(bigquery_client.insert_rows_json(tables[stream], data_holder))
-        rows[stream] += len(data_holder)
+        upload_res = bigquery_client.insert_rows_json(tables[stream], data_holder)
+        if upload_res:
+            logger.error('Upload error: {}'.format(upload_res))
+        else:
+            rows[stream] += len(data_holder)
 
     for table in errors.keys():
         if not errors[table]:
