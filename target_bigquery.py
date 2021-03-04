@@ -35,6 +35,7 @@ try:
     parser.add_argument("--data-location", help="specify data location for a dataset")
     parser.add_argument("--no-records", help="Send a specified number of records to BigQuery")
     parser.add_argument('--pickle-location', help="Pickle's file location", required=True)
+    parser.add_argument('--request-size', help="Maximum request size in bytes", required=True)
     flags = parser.parse_args()
 
 except ImportError:
@@ -47,7 +48,8 @@ SCOPES = ['https://www.googleapis.com/auth/bigquery', 'https://www.googleapis.co
 CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_NAME = 'Singer BigQuery Target'
 MAX_NO_RECORDS = 10000
-MAX_PAYLOAD_SIZE = 5000000
+# TODO: MAX_PAYLOAD_SIZE jako parametr CLI
+MAX_PAYLOAD_SIZE = int(flags.request_size)
 
 StreamMeta = collections.namedtuple('StreamMeta', ['schema', 'key_properties', 'bookmark_properties'])
 
@@ -344,7 +346,7 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
 
             item_size = getsize(modified_record)
             if payload_size + item_size >= MAX_PAYLOAD_SIZE:
-                logger.info('Max request size reached. Sending: {} records.'.format(len(data_holder)))
+                logger.info('Near max request size. Sending: {} records, payload size: {}.'.format(len(data_holder), payload_size))
                 upload_res = bigquery_client.insert_rows_json(tables[msg.stream], data_holder)
                 if upload_res:
                     logger.error('Upload error: {}'.format(upload_res))
