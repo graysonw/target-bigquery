@@ -36,8 +36,9 @@ try:
     parser.add_argument("--no-records", help="Send a specified number of records to BigQuery")
     parser.add_argument('--pickle-location', help="Pickle's file location", required=True)
     parser.add_argument('--request-size', help="Maximum request size in bytes", required=True)
+    parser.add_argument('--ensure-ascii', help="Ensure ASCII characters (true/false).", required=True)
     flags = parser.parse_args()
-
+    flags.ensure_ascii = True if flags.ensure_ascii == 'true' else False
 except ImportError:
     flags = None
 
@@ -105,11 +106,11 @@ def handle_empty_arrays(array_nodes, payload):
     return payload
 
 
-def force_fields_to_string(selected_fields, payload):
+def force_fields_to_string(selected_fields, payload, ensure_ascii):
     for field_name in selected_fields:
         field_obj = payload.get(field_name)
         if field_obj:
-            payload[field_name] = json.dumps(field_obj, ensure_ascii=False)
+            payload[field_name] = json.dumps(field_obj, ensure_ascii=ensure_ascii)
         else:
             payload[field_name] = None
     return payload
@@ -288,7 +289,7 @@ def persist_lines_job(project_id, dataset_id, lines=None, truncate=False, valida
     return state
 
 
-def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=True, array_nodes=[], force_to_string_fields=[]):
+def persist_lines_stream(project_id, dataset_id, ensure_ascii, lines=None, validate_records=True, array_nodes=[], force_to_string_fields=[]):
     state = None
     schemas = {}
     key_properties = {}
@@ -341,7 +342,7 @@ def persist_lines_stream(project_id, dataset_id, lines=None, validate_records=Tr
 
             modified_record = handle_decimal_values(msg.record)
             modified_record = handle_empty_arrays(array_nodes, modified_record)
-            modified_record = force_fields_to_string(force_to_string_fields, modified_record)
+            modified_record = force_fields_to_string(force_to_string_fields, modified_record, ensure_ascii)
 
             item_size = getsize(modified_record)
             if payload_size + item_size >= MAX_PAYLOAD_SIZE:
@@ -473,9 +474,9 @@ def main():
         force_to_string_fields = pickled_data['force_to_string_fields']
 
     if config.get('stream_data', True):
-        state = persist_lines_stream(config['project_id'], config['dataset_id'], input,
+        state = persist_lines_stream(project_id=config['project_id'], dataset_id=config['dataset_id'], lines=input,
                                      validate_records=validate_records, array_nodes=array_nodes,
-                                     force_to_string_fields=force_to_string_fields)
+                                     force_to_string_fields=force_to_string_fields, ensure_ascii=flags.ensure_ascii)
     else:
         state = persist_lines_job(config['project_id'], config['dataset_id'], input, truncate=truncate,
                                   validate_records=validate_records)
