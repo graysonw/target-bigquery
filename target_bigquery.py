@@ -48,7 +48,6 @@ SCOPES = ['https://www.googleapis.com/auth/bigquery', 'https://www.googleapis.co
 CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_NAME = 'Singer BigQuery Target'
 MAX_NO_RECORDS = 10000
-# TODO: MAX_PAYLOAD_SIZE jako parametr CLI
 MAX_PAYLOAD_SIZE = int(flags.request_size)
 
 StreamMeta = collections.namedtuple('StreamMeta', ['schema', 'key_properties', 'bookmark_properties'])
